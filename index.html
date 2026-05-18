@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ben's Cookie Stack Master</title>
+    <link rel="stylesheet" href="./style.css">
+    
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "cannon": "https://unpkg.com/cannon-es@0.15.1/dist/cannon-es.js"
+        }
+      }
+    </script>
+</head>
+<body>
+    <div id="ui-container">
+        <div id="score-counter">Score: <span id="score">0</span></div>
+        <div id="powerup-status"></div>
+    </div>
+
+    <div id="instructions" class="overlay">
+        <div class="content">
+            <h1>Cookie Stack Rush</h1>
+            <p>Tap, Click, or press Spacebar to stack the cookies perfectly!</p>
+            <button id="start-btn">Bake Cookies</button>
+        </div>
+    </div>
+
+    <div id="results" class="overlay hidden">
+        <div class="content">
+            <h1>Game Over!</h1>
+            <p>Your cookies crumbled.</p>
+            <button id="restart-btn">Try Again</button>
+        </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
