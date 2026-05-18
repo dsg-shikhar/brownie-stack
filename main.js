@@ -8,6 +8,7 @@ let stack = [];
 let overhangs = [];
 let gameEnded = false;
 let score = 0;
+let highScore = 0; // Persistent high-score variable
 
 let currentLevelSpeed = 0.07; 
 const baseSpeed = 0.07;
@@ -26,6 +27,7 @@ let slowMotionTurnsLeft = 0;
 
 let scene, camera, renderer, world, proceduralBumpTexture;
 const scoreElement = document.getElementById("score");
+const highscoreElement = document.getElementById("highscore");
 const powerupStatusElement = document.getElementById("powerup-status");
 
 function createCookieTexture() {
@@ -48,7 +50,6 @@ function createCookieTexture() {
     return texture;
 }
 
-// Memory Disposal Helper
 function cleanMeshPayload(meshGroup) {
     meshGroup.traverse(child => {
         if (child.isMesh) {
@@ -64,13 +65,17 @@ function cleanMeshPayload(meshGroup) {
 
 function init() {
     world = new CANNON.World();
-    world.gravity.set(0, -14, 0); 
+    world.gravity.set(0, -16, 0); // slightly heavier gravity environment for punchier falls
     world.broadphase = new CANNON.NaiveBroadphase();
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xFCF6E8); // Warm Ben's Cream
+    scene.background = new THREE.Color(0xFCF6E8); 
 
     proceduralBumpTexture = createCookieTexture();
+
+    // High Score Loading Routine
+    highScore = parseInt(localStorage.getItem("bens_cookies_highscore")) || 0;
+    highscoreElement.innerText = highScore;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
@@ -195,23 +200,40 @@ function addLayer(x, z, width, depth, direction) {
     stack.push({ mesh: meshGroup, x, z, width, depth, direction, flavor });
 }
 
-function spawnOverhang(x, z, width, depth, flavor) {
+// --- Enhanced Crumble Physics Engine ---
+function spawnOverhang(x, z, width, depth, flavor, dir = 'x', fallingSign = 1) {
     const y = (stack.length - 1) * boxHeight;
     const meshGroup = createCookieComponent(width, depth, flavor);
     meshGroup.position.set(x, y, z);
     scene.add(meshGroup);
 
     const shape = new CANNON.Box(new CANNON.Vec3(width / 2, boxHeight / 2, depth / 2));
-    const body = new CANNON.Body({ mass: 4, shape: shape });
+    const body = new CANNON.Body({ 
+        mass: width * depth * 2, // Mass dynamically calculated by piece scale
+        shape: shape 
+    });
     body.position.set(x, y, z);
-    world.addBody(body);
 
+    // 1. Slicing Impulse: Pushes debris outward along the slice path vector
+    const lateralPushForce = 4.5 * fallingSign;
+    if (dir === 'x') {
+        body.velocity.set(lateralPushForce, -1.0, 0);
+    } else {
+        body.velocity.set(0, -1.0, lateralPushForce);
+    }
+
+    // 2. Angular Momentum Torque: Randomizes rotational tumbling speeds
+    body.angularVelocity.set(
+        (Math.random() - 0.5) * 12,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 12
+    );
+
+    world.addBody(body);
     overhangs.push({ mesh: meshGroup, body });
 }
 
-// --- Repaired Activation Matrix ---
 function startNewGame() {
-    // Explicitly wipe asset contexts from memory cache
     stack.forEach(layer => {
         scene.remove(layer.mesh);
         cleanMeshPayload(layer.mesh);
@@ -234,7 +256,6 @@ function startNewGame() {
     scoreElement.innerText = score;
     powerupStatusElement.innerText = "";
 
-    // CRITICAL FIX: Snaps the camera space back to base tracking frame coordinates
     camera.position.set(5, 5, 5);
     camera.lookAt(0, 1, 0);
 
@@ -292,7 +313,6 @@ function handlePlacement() {
         const targetWidth = dir === 'x' ? newSize : activeLayer.width;
         const targetDepth = dir === 'z' ? newSize : activeLayer.depth;
 
-        // Clean removal and structural mesh rebuild
         scene.remove(activeLayer.mesh);
         cleanMeshPayload(activeLayer.mesh);
 
@@ -308,10 +328,11 @@ function handlePlacement() {
         let fallingSign = delta > 0 ? 1 : -1;
         let fallingPos = (dir === 'x' ? targetX : targetZ) + (newSize / 2 + fallingSize / 2) * fallingSign;
 
+        // Sent cutting arguments down to the reworked physics model
         if (dir === 'x') {
-            spawnOverhang(fallingPos, activeLayer.z, fallingSize, activeLayer.depth, activeLayer.flavor);
+            spawnOverhang(fallingPos, activeLayer.z, fallingSize, activeLayer.depth, activeLayer.flavor, 'x', fallingSign);
         } else {
-            spawnOverhang(activeLayer.x, fallingPos, activeLayer.width, fallingSize, activeLayer.flavor);
+            spawnOverhang(activeLayer.x, fallingPos, activeLayer.width, fallingSize, activeLayer.flavor, 'z', fallingSign);
         }
         scoreIncrement(false);
     }
@@ -330,6 +351,13 @@ function scoreIncrement(isPerfect) {
     }
     score += points;
     scoreElement.innerText = score;
+
+    // Local Storage Live Evaluation Checks
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("bens_cookies_highscore", highScore);
+        highscoreElement.innerText = highScore;
+    }
 }
 
 function rollForPowerUp() {
@@ -352,7 +380,12 @@ function handleGameOver() {
     const failingLayer = stack[stack.length - 1];
     scene.remove(failingLayer.mesh);
     cleanMeshPayload(failingLayer.mesh);
-    spawnOverhang(failingLayer.x, failingLayer.z, failingLayer.width, failingLayer.depth, failingLayer.flavor);
+    
+    spawnOverhang(failingLayer.x, failingLayer.z, failingLayer.width, failingLayer.depth, failingLayer.flavor, failingLayer.direction, 1);
+    
+    // Inject ending metric states into the layout containers
+    document.getElementById("final-score").innerText = score;
+    document.getElementById("final-highscore").innerText = highScore;
     document.getElementById("results").classList.remove("hidden");
 }
 
