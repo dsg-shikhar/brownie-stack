@@ -17,23 +17,26 @@
 </head>
 <body>
     <div id="ui-container">
-        <div id="score-counter">Score: <span id="score">0</span></div>
+        <div id="score-counter">COOKIES BAKED: <span id="score">0</span></div>
         <div id="powerup-status"></div>
     </div>
 
     <div id="instructions" class="overlay">
-        <div class="content">
-            <h1>Cookie Stack Rush</h1>
-            <p>Tap, Click, or press Spacebar to stack the cookies perfectly!</p>
-            <button id="start-btn">Bake Cookies</button>
+        <div class="brand-card">
+            <div class="brand-logo">Ben's</div>
+            <div class="brand-subtext">COOKIES</div>
+            <h1 class="game-title">Stacking Rush</h1>
+            <p class="game-desc">Tap or press Spacebar to perfectly stack fresh baked cookies. Watch out for crumbles!</p>
+            <button id="start-btn" class="bens-btn">Start Baking</button>
         </div>
     </div>
 
     <div id="results" class="overlay hidden">
-        <div class="content">
-            <h1>Game Over!</h1>
-            <p>Your cookies crumbled.</p>
-            <button id="restart-btn">Try Again</button>
+        <div class="brand-card error-border">
+            <div class="brand-logo tiny">Ben's</div>
+            <h1 class="game-title red-text">The Cookies Crumbled!</h1>
+            <p class="game-desc">Your fresh batch fell short of the counter window.</p>
+            <button id="restart-btn" class="bens-btn">Bake Another Batch</button>
         </div>
     </div>
 
