@@ -18,6 +18,7 @@
 <body>
     <div id="ui-container">
         <div id="score-counter">COOKIES BAKED: <span id="score">0</span></div>
+        <div id="highscore-counter">BEST BATCH: <span id="highscore">0</span></div>
         <div id="powerup-status"></div>
     </div>
 
@@ -36,6 +37,10 @@
             <div class="brand-logo tiny">Ben's</div>
             <h1 class="game-title red-text">The Cookies Crumbled!</h1>
             <p class="game-desc">Your fresh batch fell short of the counter window.</p>
+            <div class="end-stats">
+                <p>Baking Score: <strong id="final-score">0</strong></p>
+                <p>Bakery Record: <strong id="final-highscore">0</strong></p>
+            </div>
             <button id="restart-btn" class="bens-btn">Bake Another Batch</button>
         </div>
     </div>
