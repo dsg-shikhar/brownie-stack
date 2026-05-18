@@ -148,4 +148,34 @@ canvas {
     transform: scale(0.96);
 }
 
+#highscore-counter {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--bens-dark);
+    letter-spacing: 1px;
+    background: rgba(252, 246, 232, 0.7);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px dashed var(--bens-dark);
+    margin-top: 6px;
+    display: inline-block;
+}
+
+.end-stats {
+    background: rgba(43, 26, 16, 0.05);
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    color: var(--bens-dark);
+}
+
+.end-stats p {
+    margin: 6px 0;
+}
+
+.end-stats strong {
+    color: var(--bens-red);
+}
+
 .hidden { display: none !important; }
