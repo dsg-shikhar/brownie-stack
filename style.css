@@ -1,59 +1,151 @@
+:root {
+    --bens-red: #961A20;
+    --bens-cream: #FCF6E8;
+    --bens-dark: #2B1A10;
+    --bens-gold: #D4A373;
+}
+
 body {
     margin: 0;
     overflow: hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f7ede2;
+    font-family: 'Courier New', Courier, monospace, sans-serif;
+    background-color: var(--bens-cream);
     user-select: none;
     -webkit-user-select: none;
 }
+
 canvas {
     display: block;
     width: 100vw;
     height: 100vh;
 }
+
 #ui-container {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    font-size: 24px;
-    font-weight: bold;
-    color: #5e503f;
+    top: 25px;
+    left: 25px;
     z-index: 10;
     pointer-events: none;
 }
-#powerup-status {
-    font-size: 16px;
-    color: #e76f51;
-    margin-top: 5px;
-    height: 20px;
+
+#score-counter {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--bens-red);
+    letter-spacing: 1px;
+    background: rgba(252, 246, 232, 0.85);
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 2px solid var(--bens-red);
+    display: inline-block;
 }
+
+#powerup-status {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--bens-dark);
+    margin-top: 8px;
+    text-transform: uppercase;
+    background: var(--bens-gold);
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: table;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+#powerup-status:not(:empty) {
+    opacity: 1;
+}
+
+/* Elegant Brand Component Overlays */
 .overlay {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(94, 80, 63, 0.7);
+    background: rgba(43, 26, 16, 0.55);
+    backdrop-filter: blur(4px);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 20;
-    transition: opacity 0.3s ease;
 }
-.content {
-    background: #fff;
-    padding: 30px;
-    border-radius: 15px;
+
+.brand-card {
+    background: var(--bens-cream);
+    border: 4px solid var(--bens-dark);
+    padding: 40px 30px;
+    border-radius: 0px; /* Sharp corners matching old English bakery tins */
     text-align: center;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    max-width: 80%;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+    max-width: 400px;
+    width: 85%;
 }
-button {
-    background: #e76f51;
+
+.error-border {
+    border-color: var(--bens-red);
+}
+
+.brand-logo {
+    font-family: 'Georgia', serif;
+    font-size: 64px;
+    font-weight: bold;
+    font-style: italic;
+    color: var(--bens-red);
+    line-height: 50px;
+}
+
+.brand-logo.tiny {
+    font-size: 36px;
+    line-height: 30px;
+}
+
+.brand-subtext {
+    font-size: 12px;
+    letter-spacing: 6px;
+    font-weight: bold;
+    color: var(--bens-dark);
+    margin-bottom: 20px;
+    text-indent: 6px;
+}
+
+.game-title {
+    font-size: 24px;
+    color: var(--bens-dark);
+    margin: 15px 0 10px 0;
+    text-transform: uppercase;
+    font-weight: 900;
+}
+
+.red-text {
+    color: var(--bens-red);
+}
+
+.game-desc {
+    font-size: 14px;
+    line-height: 20px;
+    color: #554338;
+    margin-bottom: 25px;
+}
+
+.bens-btn {
+    background: var(--bens-red);
     color: white;
-    border: none;
-    padding: 12px 30px;
-    font-size: 18px;
-    border-radius: 25px;
+    border: 2px solid var(--bens-dark);
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
     cursor: pointer;
-    margin-top: 15px;
+    letter-spacing: 1px;
+    transition: transform 0.1s ease, background 0.2s ease;
 }
-button:active { background: #f4a261; }
+
+.bens-btn:hover {
+    background: #b52229;
+}
+
+.bens-btn:active {
+    transform: scale(0.96);
+}
+
 .hidden { display: none !important; }
