@@ -8,7 +8,7 @@ let stack = [];
 let overhangs = [];
 let gameEnded = false;
 let score = 0;
-let highScore = 0; // Persistent high-score variable
+let highScore = 0; 
 
 let currentLevelSpeed = 0.07; 
 const baseSpeed = 0.07;
@@ -29,6 +29,25 @@ let scene, camera, renderer, world, proceduralBumpTexture;
 const scoreElement = document.getElementById("score");
 const highscoreElement = document.getElementById("highscore");
 const powerupStatusElement = document.getElementById("powerup-status");
+
+// --- Safe Browser Storage Abstraction Layer ---
+function fetchSavedHighScore() {
+    try {
+        const savedValue = localStorage.getItem("bens_cookies_highscore");
+        return savedValue ? parseInt(savedValue, 10) : 0;
+    } catch (e) {
+        console.warn("Storage access restricted. Standard session tracking fallback active.");
+        return 0;
+    }
+}
+
+function writeSavedHighScore(value) {
+    try {
+        localStorage.setItem("bens_cookies_highscore", value);
+    } catch (e) {
+        // Fail silently if cookie sandbox restrictions are in place
+    }
+}
 
 function createCookieTexture() {
     const canvas = document.createElement('canvas');
@@ -65,7 +84,7 @@ function cleanMeshPayload(meshGroup) {
 
 function init() {
     world = new CANNON.World();
-    world.gravity.set(0, -16, 0); // slightly heavier gravity environment for punchier falls
+    world.gravity.set(0, -16, 0); 
     world.broadphase = new CANNON.NaiveBroadphase();
 
     scene = new THREE.Scene();
@@ -73,8 +92,8 @@ function init() {
 
     proceduralBumpTexture = createCookieTexture();
 
-    // High Score Loading Routine
-    highScore = parseInt(localStorage.getItem("bens_cookies_highscore")) || 0;
+    // Load initial high score safely
+    highScore = fetchSavedHighScore();
     highscoreElement.innerText = highScore;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -101,27 +120,46 @@ function init() {
 
     window.addEventListener('resize', onWindowResize);
     
-    const triggerAction = () => {
+    // Core Game Interaction Handler
+    window.addEventListener('pointerdown', (e) => {
         if (gameEnded) return;
+        
+        // Prevent stacking moves if tapping an overlay UI card component
+        if (e.target.closest('.brand-card') || e.target.closest('button')) {
+            return;
+        }
+
         if (stack.length === 1 && score === 0) {
             document.getElementById("instructions").classList.add("hidden");
             startNewGame();
         } else {
             handlePlacement();
         }
-    };
+    });
 
-    window.addEventListener('pointerdown', triggerAction);
-    window.addEventListener('keydown', (e) => { if (e.code === 'Space') triggerAction(); });
+    window.addEventListener('keydown', (e) => { 
+        if (e.code === 'Space') {
+            if (gameEnded) return;
+            if (stack.length === 1 && score === 0) {
+                document.getElementById("instructions").classList.add("hidden");
+                startNewGame();
+            } else {
+                handlePlacement();
+            }
+        }
+    });
 
-    document.getElementById("start-btn").addEventListener('click', (e) => {
+    // CRITICAL: Bind overlay triggers to pointerdown and intercept propagation instantly
+    document.getElementById("start-btn").addEventListener('pointerdown', (e) => {
         e.stopPropagation();
+        e.preventDefault();
         document.getElementById("instructions").classList.add("hidden");
         startNewGame();
     });
 
-    document.getElementById("restart-btn").addEventListener('click', (e) => {
+    document.getElementById("restart-btn").addEventListener('pointerdown', (e) => {
         e.stopPropagation();
+        e.preventDefault();
         document.getElementById("results").classList.add("hidden");
         startNewGame();
     });
@@ -200,7 +238,6 @@ function addLayer(x, z, width, depth, direction) {
     stack.push({ mesh: meshGroup, x, z, width, depth, direction, flavor });
 }
 
-// --- Enhanced Crumble Physics Engine ---
 function spawnOverhang(x, z, width, depth, flavor, dir = 'x', fallingSign = 1) {
     const y = (stack.length - 1) * boxHeight;
     const meshGroup = createCookieComponent(width, depth, flavor);
@@ -209,12 +246,11 @@ function spawnOverhang(x, z, width, depth, flavor, dir = 'x', fallingSign = 1) {
 
     const shape = new CANNON.Box(new CANNON.Vec3(width / 2, boxHeight / 2, depth / 2));
     const body = new CANNON.Body({ 
-        mass: width * depth * 2, // Mass dynamically calculated by piece scale
+        mass: width * depth * 2, 
         shape: shape 
     });
     body.position.set(x, y, z);
 
-    // 1. Slicing Impulse: Pushes debris outward along the slice path vector
     const lateralPushForce = 4.5 * fallingSign;
     if (dir === 'x') {
         body.velocity.set(lateralPushForce, -1.0, 0);
@@ -222,7 +258,6 @@ function spawnOverhang(x, z, width, depth, flavor, dir = 'x', fallingSign = 1) {
         body.velocity.set(0, -1.0, lateralPushForce);
     }
 
-    // 2. Angular Momentum Torque: Randomizes rotational tumbling speeds
     body.angularVelocity.set(
         (Math.random() - 0.5) * 12,
         (Math.random() - 0.5) * 6,
@@ -233,17 +268,22 @@ function spawnOverhang(x, z, width, depth, flavor, dir = 'x', fallingSign = 1) {
     overhangs.push({ mesh: meshGroup, body });
 }
 
+// --- Repaired Restart State Machine Routine ---
 function startNewGame() {
+    // 1. Clear 3D Viewport Layers
     stack.forEach(layer => {
         scene.remove(layer.mesh);
         cleanMeshPayload(layer.mesh);
     });
+    
+    // 2. Clear Physics Engine Overhang Rigidbodies (CRITICAL FIX)
     overhangs.forEach(o => {
         scene.remove(o.mesh);
-        world.remove(o.body);
+        world.removeBody(o.body); // Fixed: Changed from world.remove to world.removeBody
         cleanMeshPayload(o.mesh);
     });
     
+    // 3. Reset Allocation Registers
     stack = [];
     overhangs = [];
     score = 0;
@@ -256,9 +296,11 @@ function startNewGame() {
     scoreElement.innerText = score;
     powerupStatusElement.innerText = "";
 
+    // 4. Reset Viewport Matrix Coordinates
     camera.position.set(5, 5, 5);
     camera.lookAt(0, 1, 0);
 
+    // 5. Generate Foundation Core Slabs
     addLayer(0, 0, originalBoxSize, originalBoxSize, 'static');
     spawnNextMovingCookie();
 }
@@ -277,6 +319,8 @@ function spawnNextMovingCookie() {
 }
 
 function handlePlacement() {
+    if (gameEnded || stack.length < 2) return;
+
     const activeLayer = stack[stack.length - 1];
     const previousLayer = stack[stack.length - 2];
     const dir = activeLayer.direction;
@@ -328,7 +372,6 @@ function handlePlacement() {
         let fallingSign = delta > 0 ? 1 : -1;
         let fallingPos = (dir === 'x' ? targetX : targetZ) + (newSize / 2 + fallingSize / 2) * fallingSign;
 
-        // Sent cutting arguments down to the reworked physics model
         if (dir === 'x') {
             spawnOverhang(fallingPos, activeLayer.z, fallingSize, activeLayer.depth, activeLayer.flavor, 'x', fallingSign);
         } else {
@@ -352,10 +395,9 @@ function scoreIncrement(isPerfect) {
     score += points;
     scoreElement.innerText = score;
 
-    // Local Storage Live Evaluation Checks
     if (score > highScore) {
         highScore = score;
-        localStorage.setItem("bens_cookies_highscore", highScore);
+        writeSavedHighScore(highScore);
         highscoreElement.innerText = highScore;
     }
 }
@@ -378,12 +420,14 @@ function rollForPowerUp() {
 function handleGameOver() {
     gameEnded = true;
     const failingLayer = stack[stack.length - 1];
-    scene.remove(failingLayer.mesh);
-    cleanMeshPayload(failingLayer.mesh);
     
-    spawnOverhang(failingLayer.x, failingLayer.z, failingLayer.width, failingLayer.depth, failingLayer.flavor, failingLayer.direction, 1);
+    if (failingLayer && failingLayer.mesh) {
+        scene.remove(failingLayer.mesh);
+        cleanMeshPayload(failingLayer.mesh);
+        spawnOverhang(failingLayer.x, failingLayer.z, failingLayer.width, failingLayer.depth, failingLayer.flavor, failingLayer.direction, 1);
+    }
     
-    // Inject ending metric states into the layout containers
+    // Mount text arrays inside HTML interface components cleanly
     document.getElementById("final-score").innerText = score;
     document.getElementById("final-highscore").innerText = highScore;
     document.getElementById("results").classList.remove("hidden");
