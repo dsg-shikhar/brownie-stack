@@ -3,71 +3,91 @@ import * as CANNON from 'cannon';
 
 // --- Game Configurations & State ---
 const originalBoxSize = 3; 
-const boxHeight = 0.45; // Sleeker cookie profile
+const boxHeight = 0.45; 
 let stack = [];
 let overhangs = [];
 let gameEnded = false;
 let score = 0;
 
-// Proper Variable Separation for Pacing Control
-let currentLevelSpeed = 0.07; // Starts smooth and accessible
+let currentLevelSpeed = 0.07; 
 const baseSpeed = 0.07;
 const maxSpeed = 0.22;
-let moveDirectionSign = 1; // Explicitly separates direction from absolute speed
+let moveDirectionSign = 1; 
 
-// Ben's Cookies Flavor Palettes with realistic baking specular values
 const cookieFlavors = [
-    { name: "Milk Chocolate Chunk", baseColor: 0xD4A373, chipColor: 0x4A3728 },
-    { name: "Triple Chocolate", baseColor: 0x3D2314, chipColor: 0x1A0F08 },
-    { name: "Matcha White Choc", baseColor: 0x708238, chipColor: 0xFDFBF7 },
-    { name: "Cranberry White", baseColor: 0xC17967, chipColor: 0x7B1113 }
+    { name: "Milk Chocolate Chunk", baseColor: 0xD4A373, chipColor: 0x3A2312, roughness: 0.9 },
+    { name: "Triple Chocolate", baseColor: 0x2B1A10, chipColor: 0x120A06, roughness: 0.85 },
+    { name: "Matcha White Choc", baseColor: 0x606C38, chipColor: 0xF5F3E9, roughness: 0.9 },
+    { name: "Double Chocolate Walnut", color: 0x5C4033, chipColor: 0x221100, roughness: 0.9 }
 ];
 
-// Power-up States
 let activePowerUp = null; 
 let slowMotionTurnsLeft = 0;
 
-let scene, camera, renderer, world;
+let scene, camera, renderer, world, proceduralBumpTexture;
 const scoreElement = document.getElementById("score");
 const powerupStatusElement = document.getElementById("powerup-status");
 
+// --- Procedural High-Fidelity Cookie Texture Generator ---
+function createCookieTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    
+    // Create a high-frequency grain noise to simulate baked flour pores
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 256, 256);
+    
+    for (let i = 0; i < 15000; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const val = Math.floor(Math.random() * 60) - 30; // High/low variance values
+        ctx.fillStyle = `rgb(${128+val},${128+val},${128+val})`;
+        ctx.fillRect(x, y, 1, 1);
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2, 2);
+    return texture;
+}
+
 function init() {
-    // 1. Physics Engine Setup
     world = new CANNON.World();
-    world.gravity.set(0, -14, 0); // Crisp falling physics
+    world.gravity.set(0, -14, 0); 
     world.broadphase = new CANNON.NaiveBroadphase();
 
-    // 2. Scene Setup
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xF5EBE0); // Warm bakery aesthetic
+    scene.background = new THREE.Color(0xFDF6EE); 
 
-    // Soft Ambient lighting + Sharp directional light to cast shadows
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    proceduralBumpTexture = createCookieTexture();
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(8, 15, 6);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
+    dirLight.position.set(7, 14, 5);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.bias = -0.0005;
     scene.add(dirLight);
 
-    // Camera Configuration
     const aspect = window.innerWidth / window.innerHeight;
     const d = 4.5;
     camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 100);
     camera.position.set(5, 5, 5);
     camera.lookAt(0, 1, 0);
 
-    // Renderer Configuration
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
-    // Action Triggers
     window.addEventListener('resize', onWindowResize);
     
     const triggerAction = () => {
@@ -98,84 +118,91 @@ function init() {
     renderer.setAnimationLoop(animationLoop);
 }
 
-// --- Procedural Mesh Generation (Making them look like real cookies) ---
-function createCookieMesh(width, depth, flavor) {
-    const cookieGroup = new THREE.Group();
+// --- High-Fidelity Cookie Factory Function ---
+function createCookieComponent(width, depth, flavor) {
+    const containerGroup = new THREE.Group();
 
-    // 1. Create Rounded Square Base Path
+    // 1. Generate Soft Rounded Base Slab Geometry
     const shape = new THREE.Shape();
-    const radius = 0.25; // Controls edge smoothness
-    const x = -width / 2;
-    const z = -depth / 2;
+    const r = 0.35; // Pronounced corner rounding for a natural cookie look
+    const hw = width / 2;
+    const hd = depth / 2;
 
-    shape.moveTo(x, z + radius);
-    shape.lineTo(x, z + depth - radius);
-    shape.quadraticCurveTo(x, z + depth, x + radius, z + depth);
-    shape.lineTo(x + width - radius, z + depth);
-    shape.quadraticCurveTo(x + width, z + depth, x + width, z + depth - radius);
-    shape.lineTo(x + width, z + radius);
-    shape.quadraticCurveTo(x + width, z, x + width - radius, z);
-    shape.lineTo(x + radius, z);
-    shape.quadraticCurveTo(x, z, x, z + radius);
+    shape.moveTo(-hw + r, -hd);
+    shape.lineTo(hw - r, -hd);
+    shape.quadraticCurveTo(hw, -hd, hw, -hd + r);
+    shape.lineTo(hw, hd - r);
+    shape.quadraticCurveTo(hw, hd, hw - r, hd);
+    shape.lineTo(-hw + r, hd);
+    shape.quadraticCurveTo(-hw, hd, -hw, hd - r);
+    shape.lineTo(-hw, -hd + r);
+    shape.quadraticCurveTo(-hw, -hd, -hw + r, -hd);
 
-    // 2. Extrude 2D shape into a soft 3D volume
     const extrudeSettings = {
         steps: 1,
         depth: boxHeight - 0.1,
         bevelEnabled: true,
         bevelThickness: 0.08,
-        bevelSize: 0.06,
-        bevelSegments: 3
+        bevelSize: 0.08,
+        bevelSegments: 4
     };
 
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    geometry.center(); // Center local pivot point
-    geometry.rotateX(Math.PI / 2); // Orient upright
+    geometry.center();
+    geometry.rotateX(Math.PI / 2);
 
-    const cookieMaterial = new THREE.MeshStandardMaterial({
+    const baseMaterial = new THREE.MeshStandardMaterial({
         color: flavor.baseColor,
-        roughness: 0.9,  // Matte texture resembles real dough
-        metalness: 0.05
+        roughness: flavor.roughness,
+        metalness: 0.02,
+        bumpMap: proceduralBumpTexture,
+        bumpScale: 0.03 // Subtle micro-surface cracks
     });
 
-    const baseMesh = new THREE.Mesh(geometry, cookieMaterial);
+    const baseMesh = new THREE.Mesh(geometry, baseMaterial);
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
-    cookieGroup.add(baseMesh);
-
-    // 3. Scatter Procedural Chocolate Chips inside the cookie bounds
-    const chipCount = Math.floor((width * depth) * 2.5);
-    const chipGeo = new THREE.SphereGeometry(0.09, 4, 4);
-    chipGeo.scale(1.3, 0.6, 1.3); // Flattens chips out slightly
     
-    const chipMat = new THREE.MeshStandardMaterial({
+    // Explicitly name the base slab to target it for clean slicing modifications
+    baseMesh.name = "cookie_slab"; 
+    containerGroup.add(baseMesh);
+
+    // 2. Generate Isolated, Scale-Protected Chocolate Chips
+    const densityFactor = 3.2; 
+    const chipCount = Math.max(3, Math.floor((width * depth) * densityFactor));
+    
+    const chipGeometry = new THREE.SphereGeometry(0.1, 5, 5);
+    chipGeometry.scale(1.4, 0.6, 1.4); // Realistic chip profiles
+    
+    const chipMaterial = new THREE.MeshStandardMaterial({
         color: flavor.chipColor,
-        roughness: 0.6,
-        metalness: 0.1
+        roughness: 0.5,
+        metalness: 0.08
     });
 
     for (let i = 0; i < chipCount; i++) {
-        const chip = new THREE.Mesh(chipGeo, chipMat);
-        // Distribute uniformly while respecting edge safety margins
-        const rx = (Math.random() - 0.5) * (width - 0.4);
-        const rz = (Math.random() - 0.5) * (depth - 0.4);
-        const ry = (boxHeight / 2) - 0.02 + (Math.random() * 0.03); // Slightly peeking out the top
+        const chipMesh = new THREE.Mesh(chipGeometry, chipMaterial);
+        
+        // Safety margin keeps chips from clipping through outer walls
+        const rx = (Math.random() - 0.5) * (width * 0.75);
+        const rz = (Math.random() - 0.5) * (depth * 0.75);
+        const ry = (boxHeight / 2) - 0.03 + (Math.random() * 0.04);
 
-        chip.position.set(rx, ry, rz);
-        chip.rotation.set(Math.random(), Math.random(), Math.random());
-        chip.castShadow = true;
-        cookieGroup.add(chip);
+        chipMesh.position.set(rx, ry, rz);
+        chipMesh.rotation.set(Math.random() * 0.2, Math.random() * 3, Math.random() * 0.2);
+        chipMesh.castShadow = true;
+        containerGroup.add(chipMesh);
     }
 
-    return cookieGroup;
+    return containerGroup;
 }
 
-// --- Layer Addition Mechanics ---
+// --- Structural Game Engine Routines ---
 function addLayer(x, z, width, depth, direction) {
     const y = stack.length * boxHeight;
     const flavor = cookieFlavors[Math.floor(Math.random() * cookieFlavors.length)];
     
-    const meshGroup = createCookieMesh(width, depth, flavor);
+    const meshGroup = createCookieComponent(width, depth, flavor);
     meshGroup.position.set(x, y, z);
     scene.add(meshGroup);
 
@@ -184,7 +211,7 @@ function addLayer(x, z, width, depth, direction) {
 
 function spawnOverhang(x, z, width, depth, flavor) {
     const y = (stack.length - 1) * boxHeight;
-    const meshGroup = createCookieMesh(width, depth, flavor);
+    const meshGroup = createCookieComponent(width, depth, flavor);
     meshGroup.position.set(x, y, z);
     scene.add(meshGroup);
 
@@ -196,7 +223,6 @@ function spawnOverhang(x, z, width, depth, flavor) {
     overhangs.push({ mesh: meshGroup, body });
 }
 
-// --- Gameplay Progression Systems (With Repaired Difficulty Matrix) ---
 function startNewGame() {
     stack.forEach(layer => scene.remove(layer.mesh));
     overhangs.forEach(o => { scene.remove(o.mesh); world.remove(o.body); });
@@ -204,7 +230,7 @@ function startNewGame() {
     stack = [];
     overhangs = [];
     score = 0;
-    currentLevelSpeed = baseSpeed; // Starts at a comfortable pace
+    currentLevelSpeed = baseSpeed; 
     moveDirectionSign = 1;
     gameEnded = false;
     activePowerUp = null;
@@ -218,8 +244,8 @@ function startNewGame() {
 }
 
 function spawnNextMovingCookie() {
-    // Gradual Difficulty Progression Curve based on actual performance milestones
-    currentLevelSpeed = Math.min(baseSpeed + (score * 0.007), maxSpeed);
+    // Dynamic Level Scaling Matrix
+    currentLevelSpeed = Math.min(baseSpeed + (score * 0.0075), maxSpeed);
 
     const topLayer = stack[stack.length - 1];
     const direction = Math.random() > 0.5 ? 'x' : 'z';
@@ -228,9 +254,7 @@ function spawnNextMovingCookie() {
     const startX = direction === 'x' ? boundaryOffset : topLayer.x;
     const startZ = direction === 'z' ? boundaryOffset : topLayer.z;
 
-    // Reset standard directional tracking sign for the incoming block
     moveDirectionSign = 1;
-
     addLayer(startX, startZ, topLayer.width, topLayer.depth, direction);
 }
 
@@ -257,7 +281,7 @@ function handlePlacement() {
         return;
     }
 
-    const isPerfect = Math.abs(delta) < 0.15; // Fair tolerance threshold for mobile interactions
+    const isPerfect = Math.abs(delta) < 0.14; 
     
     if (isPerfect || activePowerUp === 'STICKY') {
         activeLayer[dir] = previousLayer[dir];
@@ -266,19 +290,32 @@ function handlePlacement() {
         if (activePowerUp === 'STICKY') activePowerUp = null;
     } else {
         const newSize = overlap;
-        activeLayer[dir === 'x' ? 'width' : 'depth'] = newSize;
         
-        // Dynamic re-scaling logic optimized for nested groups
-        const scaleFactor = newSize / oldSize;
-        activeLayer.mesh.scale[dir] = scaleFactor;
-        
-        const centerOffset = previousLayer[dir] + delta / 2;
-        activeLayer[dir] = centerOffset;
-        activeLayer.mesh.position[dir] = centerOffset;
+        // Capture global coordinates before reconstructing the mesh
+        const targetX = previousLayer.x + (dir === 'x' ? delta / 2 : 0);
+        const targetZ = previousLayer.z + (dir === 'z' ? delta / 2 : 0);
+        const targetWidth = dir === 'x' ? newSize : activeLayer.width;
+        const targetDepth = dir === 'z' ? newSize : activeLayer.depth;
 
+        // Visual Deconstruction Fix: Remove the old group entirely
+        scene.remove(activeLayer.mesh);
+
+        // Regenerate a brand new cookie component with perfect proportions
+        const pristineGroup = createCookieComponent(targetWidth, targetDepth, activeLayer.flavor);
+        pristineGroup.position.set(targetX, activeLayer.mesh.position.y, targetZ);
+        scene.add(pristineGroup);
+
+        // Reassign reference pointers to the clean, non-distorted asset
+        activeLayer.mesh = pristineGroup;
+        activeLayer.x = targetX;
+        activeLayer.z = targetZ;
+        activeLayer.width = targetWidth;
+        activeLayer.depth = targetDepth;
+
+        // Calculate and drop sliced debris chunks
         let fallingSize = oldSize - newSize;
         let fallingSign = delta > 0 ? 1 : -1;
-        let fallingPos = centerOffset + (newSize / 2 + fallingSize / 2) * fallingSign;
+        let fallingPos = (dir === 'x' ? targetX : targetZ) + (newSize / 2 + fallingSize / 2) * fallingSign;
 
         if (dir === 'x') {
             spawnOverhang(fallingPos, activeLayer.z, fallingSize, activeLayer.depth, activeLayer.flavor);
@@ -339,7 +376,7 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// --- Frame Processing Engine Loop ---
+// --- Frame Execution Loop ---
 function animationLoop() {
     world.step(1 / 60);
 
@@ -352,18 +389,15 @@ function animationLoop() {
         const activeLayer = stack[stack.length - 1];
         const dir = activeLayer.direction;
 
-        // Apply clean calculation modifiers for active slow-motion states
         let computedSpeed = currentLevelSpeed;
         if (activePowerUp === 'SLOW_MOTION' && slowMotionTurnsLeft > 0) {
             computedSpeed *= 0.45;
-            powerupStatusElement.innerText = `Slow Motion Active (${slowMotionTurnsLeft} moves remaining)`;
+            powerupStatusElement.innerText = `Slow Motion Active (${slowMotionTurnsLeft} moves left)`;
         }
 
-        // Advance layer positions cleanly along its active timeline vector axis
         activeLayer[dir] += computedSpeed * moveDirectionSign;
         activeLayer.mesh.position[dir] = activeLayer[dir];
 
-        // Ping-pong boundary check logic cleanly isolated from speed calculations
         if (activeLayer[dir] > 4.5) {
             moveDirectionSign = -1;
         } else if (activeLayer[dir] < -4.5) {
@@ -371,7 +405,6 @@ function animationLoop() {
         }
     }
 
-    // Camera Panning interpolation
     if (stack.length > 3) {
         const targetY = (stack.length - 3) * boxHeight + 4.5;
         camera.position.y += (targetY - camera.position.y) * 0.1;
